@@ -1,70 +1,30 @@
-import torch
 import torch.nn as nn
-from typing import List, Dict
-
 
 class ChordLSTM(nn.Module):
-    def __init__(self, vocab_size: int, embedding_dim: int, hidden_dim: int):
+    def __init__(self, vocab_size: int, hidden_dim: int):
         super().__init__()
-        self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim, num_layers=2, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, vocab_size)
+        self.embedding = nn.Embedding(vocab_size, hidden_dim)
+        self.lstm = nn.LSTM(
+            hidden_dim,
+            hidden_dim * 2,  # Increase hidden dimension
+            num_layers=3,    # Add more layers
+            batch_first=True,
+            dropout=0.1      # Reduce dropout
+        )
+        self.dropout = nn.Dropout(0.1)
+        self.chord_head = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, vocab_size)
+        )
+        self.duration_head = nn.Linear(hidden_dim * 2, 8)
 
     def forward(self, x):
-        embedded = self.embedding(x)
+        embedded = self.dropout(self.embedding(x))
         lstm_out, _ = self.lstm(embedded)
-        return self.fc(lstm_out[:, -1, :])
+        last_hidden = lstm_out[:, -1, :]
 
+        chord_logits = self.chord_head(last_hidden)
+        duration_logits = self.duration_head(last_hidden)  # Now outputs logits for 8 classes
 
-class ChordProgressionModel:
-    def __init__(self, sequence_length=3):
-        self.sequence_length = sequence_length
-        self.device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-        print(f"Using device: {self.device}")
-
-        # Initialize chord vocabulary
-        self.chord_types = self._initialize_chord_types()
-        self.chord_to_idx = {chord: idx for idx, chord in enumerate(self.chord_types)}
-        self.idx_to_chord = {idx: chord for chord, idx in self.chord_to_idx.items()}
-
-        # Initialize model
-        self.model = ChordLSTM(
-            vocab_size=len(self.chord_types),
-            embedding_dim=16,
-            hidden_dim=32
-        ).to(self.device)
-
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.Adam(self.model.parameters())
-
-    def _initialize_chord_types(self) -> List[str]:
-        """Initialize the vocabulary of chord symbols"""
-        chord_types = []
-        basic_numerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
-
-        # Add major and minor chords with accidentals
-        for numeral in basic_numerals:
-            # Major chords
-            chord_types.extend([numeral, f"{numeral}#", f"{numeral}b"])
-            # Minor chords
-            lower = numeral.lower()
-            chord_types.extend([lower, f"{lower}#", f"{lower}b"])
-
-        return chord_types
-
-    def save_model(self, path: str):
-        """Save model state and vocabulary"""
-        state = {
-            'model_state': self.model.state_dict(),
-            'chord_to_idx': self.chord_to_idx,
-            'sequence_length': self.sequence_length
-        }
-        torch.save(state, path)
-
-    def load_model(self, path: str):
-        """Load model state and vocabulary"""
-        state = torch.load(path, map_location=self.device)
-        self.chord_to_idx = state['chord_to_idx']
-        self.idx_to_chord = {idx: chord for chord, idx in self.chord_to_idx.items()}
-        self.sequence_length = state['sequence_length']
-        self.model.load_state_dict(state['model_state'])
+        return chord_logits, duration_logits

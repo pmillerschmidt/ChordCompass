@@ -1,75 +1,97 @@
-# data_loader.py
-from typing import List
-import csv
-from pathlib import Path
+import torch
+from torch.utils.data import Dataset, DataLoader
+from typing import Dict, List, Tuple, Optional
+import pickle
 
 
-class ProgressionDataLoader:
-    """Loads chord progressions from various file formats"""
+NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-    @staticmethod
-    def load_txt(file_path: str) -> List[str]:
-        """Load progressions from txt file (one per line)"""
-        with open(file_path, 'r') as f:
-            return [line.strip() for line in f if line.strip()]
+class ChordDataset(Dataset):
+    def __init__(self, data_dict: Dict, sequence_length: int, chord_to_idx: Dict[str, int]):
+        # Initialize chord types based on mode
+        self.major_chord_types = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°']
+        self.minor_chord_types = ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII']
 
-    @staticmethod
-    def load_csv(file_path: str, progression_col: str = 'Progression') -> List[str]:
-        """Load progressions from CSV file"""
-        progressions = []
-        with open(file_path, 'r') as f:
-            reader = csv.DictReader(f)
-            if progression_col not in next(reader).keys():
-                raise ValueError(f"Column '{progression_col}' not found in CSV")
-            # Reset file pointer
-            f.seek(0)
-            next(reader)  # Skip header
-            progressions = [row[progression_col] for row in reader if row[progression_col]]
-        return progressions
+        self.sequences = []
+        self.chord_targets = []
+        self.duration_targets = []
+
+        for piece_name, piece_data in data_dict.items():
+            # Process the roots, returns None if any non-scale chord is found
+            result = self._process_roots(
+                piece_data['root'],
+                piece_data['tonic'],
+                piece_data['mode']
+            )
+            # Skip this piece if it contains non-scale chords
+            if result is None:
+                continue
+            chord_sequence, duration_sequence = result
+            # Create sequences only if we have enough chords
+            if len(chord_sequence) >= sequence_length + 1:
+                for i in range(len(chord_sequence) - sequence_length):
+                    sequence = chord_sequence[i:i + sequence_length]
+                    next_chord = chord_sequence[i + sequence_length]
+                    next_duration = duration_sequence[i + sequence_length]
+                    sequence_idx = [chord_to_idx[chord] for chord in sequence]
+                    target_chord_idx = chord_to_idx[next_chord]
+                    self.sequences.append(sequence_idx)
+                    self.chord_targets.append(target_chord_idx)
+                    self.duration_targets.append(next_duration)
+        self.sequences = torch.LongTensor(self.sequences)
+        self.chord_targets = torch.LongTensor(self.chord_targets)
+        self.duration_targets = torch.LongTensor(self.duration_targets)
+
+    def __len__(self):
+        return len(self.sequences)
+
+    def __getitem__(self, idx):
+        return self.sequences[idx], self.chord_targets[idx], self.duration_targets[idx]
+
+    def _process_roots(self, root_matrix: List[List[int]], tonic: int, mode: str) -> Optional[
+        Tuple[List[str], List[int]]]:
+        major_scale = [0, 2, 4, 5, 7, 9, 11]  # Scale degrees in semitones
+        minor_scale = [0, 2, 3, 5, 7, 8, 10]
+        scale = minor_scale if mode == 'm' else major_scale
+        chord_types = self.minor_chord_types if mode == 'm' else self.major_chord_types
+        chord_progression = []
+        durations = []
+        current_chord = None
+        current_duration = 0
+        for bar in root_matrix:
+            for root in bar:
+                interval = (root - tonic) % 12
+                # If we encounter a non-scale tone, return None
+                if interval not in scale:
+                    return None
+                scale_index = scale.index(interval)
+                chord = chord_types[scale_index]
+                if chord != current_chord:
+                    if current_chord is not None:
+                        chord_progression.append(current_chord)
+                        durations.append(current_duration)
+                    current_chord = chord
+                    current_duration = 1
+                else:
+                    current_duration += 1
+        # Add the final chord
+        if current_chord is not None:
+            chord_progression.append(current_chord)
+            durations.append(current_duration)
+        return chord_progression, durations
 
 
-    @classmethod
-    def load(cls, file_path: str, **kwargs) -> List[str]:
-        """Load progressions from a file based on its extension"""
-        path = Path(file_path)
-        if not path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
+def create_chord_vocabulary() -> List[str]:
+    chord_types = [
+        # Major scale chords
+        'I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°',
+        # Minor scale chords
+        'i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'
+    ]
+    return chord_types
 
-        loaders = {
-            '.txt': cls.load_txt,
-            '.csv': cls.load_csv
-        }
 
-        loader = loaders.get(path.suffix.lower())
-        if not loader:
-            raise ValueError(f"Unsupported file format: {path.suffix}")
+def load_dataset(path: str) -> Dict:
+    with open(path, 'rb') as file:
+        return pickle.load(file)
 
-        return loader(file_path, **kwargs)
-
-    @staticmethod
-    def validate_progression(prog: str) -> bool:
-        """Validate a chord progression format"""
-        if not prog:
-            return False
-
-        # Check basic format (chords separated by hyphens)
-        parts = prog.split('-')
-        if not parts:
-            return False
-
-        # Basic chord pattern: I, i, I#, Ib, etc.
-        valid_numerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
-        valid_accidentals = ['', '#', 'b']
-
-        for chord in parts:
-            # Remove accidental if present
-            base = chord.rstrip('#b')
-            # Check if it's a valid numeral (upper or lower case)
-            if base.upper() not in valid_numerals:
-                return False
-            # Check if accidental is valid
-            accidental = chord[len(base):]
-            if accidental not in valid_accidentals:
-                return False
-
-        return True

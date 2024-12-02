@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Slider } from './ui/slider';
 import { generateProgression } from '../services/api';
 import { Alert, AlertDescription } from "./ui/alert";
 import { Loader2 } from "lucide-react";
 
 export default function ChordGenerator({ onProgressionGenerated }) {
-  const [seed, setSeed] = useState('I-V-vi');
-  const [length, setLength] = useState(8);
+  const [length, setLength] = useState(4);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -18,8 +15,11 @@ export default function ChordGenerator({ onProgressionGenerated }) {
     setError(null);
 
     try {
-      const { progression } = await generateProgression(seed, length);
-      onProgressionGenerated(progression);
+      const data = await generateProgression(length);
+      onProgressionGenerated(data.chords.map((chord, i) => ({
+        chord,
+        duration: data.durations[i]
+      })));
     } catch (error) {
       setError('Failed to generate progression. Please try again.');
       console.error('Error:', error);
@@ -29,32 +29,31 @@ export default function ChordGenerator({ onProgressionGenerated }) {
   };
 
   return (
-    <Card className="w-full">
+    <Card>
       <CardHeader className="text-center">
-        <CardTitle>Chord Progression Generator</CardTitle>
+        <CardTitle>Generate a Progression</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-center">Seed Progression</label>
-          <Input
-            value={seed}
-            onChange={(e) => setSeed(e.target.value)}
-            placeholder="Enter seed (e.g., I-V-vi)"
-            className="max-w-md mx-auto"
-            disabled={loading}
-          />
-        </div>
-
-        <div className="space-y-2 max-w-md mx-auto">
-          <label className="block text-sm font-medium text-center">Length: {length}</label>
-          <Slider
-            value={[length]}
-            onValueChange={([value]) => setLength(value)}
-            min={4}
-            max={16}
-            step={1}
-            disabled={loading}
-          />
+        <div className="flex flex-col items-center gap-4">
+          <label className="text-sm font-medium">Length</label>
+          <div className="flex gap-4">
+            <Button
+              variant="outline"
+              onClick={() => setLength(4)}
+              className={`w-24 ${length === 4 ? 'bg-blue-500 text-white hover:bg-blue-600' : ''}`}
+              disabled={loading}
+            >
+              4 Bars
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setLength(8)}
+              className={`w-24 ${length === 8 ? 'bg-blue-500 text-white hover:bg-blue-600' : ''}`}
+              disabled={loading}
+            >
+              8 Bars
+            </Button>
+          </div>
         </div>
 
         <div className="flex justify-center">
@@ -69,13 +68,13 @@ export default function ChordGenerator({ onProgressionGenerated }) {
                 Generating...
               </>
             ) : (
-              'Generate Progression'
+              'Generate'
             )}
           </Button>
         </div>
 
         {error && (
-          <Alert variant="destructive" className="mt-4">
+          <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}

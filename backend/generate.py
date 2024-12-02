@@ -1,83 +1,115 @@
-# generate.py
-import torch
-import numpy as np
-from player import ChordPlayer
-from ChordLSTM import ChordProgressionModel
 import argparse
+from pathlib import Path
+from typing import List, Tuple, Dict, Optional
+
+import torch
+import logging
+from ChordLSTM import ChordLSTM
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-def generate_progression(seed_progression: str, length: int = 8, model_path: str = 'chord_model.pth'):
-    """Generate a new progression from a seed"""
-    # Initialize model and load weights
-    model = ChordProgressionModel()
-    model.load_model(model_path)  # Load the saved weights
+class ChordGenerator:
+    def __init__(self, model: ChordLSTM, device: torch.device, chord_to_idx: dict):
+        self.model = model
+        self.device = device
+        self.chord_to_idx = chord_to_idx
+        self.idx_to_chord = {idx: chord for chord, idx in chord_to_idx.items()}
 
-    model.model.eval()  # Set to evaluation mode
+    def generate_progression(self, seed_progression: Optional[List[str]] = None, length: int = 8, temperature: float = 1.0) -> List[Tuple[str, int]]:
+        if seed_progression is None:
+            # Start with common chord choices like I or vi
+            seed_progression = ['I'] * 3
 
-    # Parse seed
-    if isinstance(seed_progression, str):
-        seed_progression = [chord for chord in seed_progression.split('-') if chord]
+        self.model.eval()
 
-    if len(seed_progression) < model.sequence_length:
-        print(f"Warning: Seed progression too short, padding with I")
-        seed_progression = ['I'] * (model.sequence_length - len(seed_progression)) + seed_progression
+        # Convert seed progression to indices
+        seed_indices = [self.chord_to_idx.get(chord, 0) for chord in seed_progression]
+        current_sequence = torch.LongTensor([seed_indices]).to(self.device)
 
-    # Convert seed to indices
-    generated = [model.chord_to_idx.get(chord, 0) for chord in seed_progression]
+        generated_progression = []
 
-    # Generate new chords
-    with torch.no_grad():
-        for _ in range(length - len(seed_progression)):
-            sequence = torch.LongTensor([generated[-model.sequence_length:]]).to(model.device)
-            output = model.model(sequence)
-            probs = torch.softmax(output, dim=1).cpu().numpy()[0]
+        with torch.no_grad():
+            for _ in range(length):
+                chord_logits, duration_logits = self.model(current_sequence)
 
-            # Add some randomness
-            probs = np.power(probs, 1.2)
-            probs /= probs.sum()
+                # Apply temperature scaling
+                chord_logits = chord_logits / temperature
+                duration_logits = duration_logits / temperature
 
-            next_chord = np.random.choice(len(model.chord_types), p=probs)
-            generated.append(next_chord)
+                # Sample next chord
+                chord_probs = torch.softmax(chord_logits, dim=1)
+                next_chord_idx = torch.multinomial(chord_probs[0], 1).item()
+                next_chord = self.idx_to_chord[next_chord_idx]
 
-    # Convert back to chord symbols
-    return [model.idx_to_chord[idx] for idx in generated]
+                # Sample duration (1-8 eighth notes)
+                duration_probs = torch.softmax(duration_logits, dim=1)
+                duration_idx = torch.multinomial(duration_probs[0], 1).item()
+                next_duration = duration_idx + 1  # Convert back to 1-8 range
+
+                generated_progression.append((next_chord, next_duration))
+
+                # Update sequence
+                current_sequence = torch.cat([
+                    current_sequence[:, 1:],
+                    torch.LongTensor([[next_chord_idx]]).to(self.device)
+                ], dim=1)
+
+        return generated_progression
 
 
-if __name__ == "__main__":
-    # Test generation
-    progression = generate_progression("I-VI#-ii", length=8)
-    print("Generated progression:", "-".join(progression))
+def load_model(checkpoint_path: Path, device: torch.device) -> Tuple[ChordLSTM, Dict]:
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    chord_to_idx = checkpoint['vocab']
+
+    model = ChordLSTM(
+        vocab_size=len(chord_to_idx),
+        hidden_dim=64
+    ).to(device)
+
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.eval()
+
+    return model, chord_to_idx
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Generate chord progressions')
-    parser.add_argument('--model_path', type=str, default='chord_model.pth', help='Path to trained model')
-    parser.add_argument('--seed', type=str, default='I-VI#-ii', help='Seed progression')
-    parser.add_argument('--length', type=int, default=8, help='Length of generated progression')
-    parser.add_argument('--duration', type=float, default=1.0, help='Duration per chord in seconds')
-    parser.add_argument('--play', action='store_true', help='Play the progression')
+    parser = argparse.ArgumentParser(description='Generate Chord Progressions')
+    parser.add_argument('--checkpoint', type=str, required=True, help='Path to model checkpoint')
+    parser.add_argument('--seed_progression', type=str, nargs='+', default=None, help='Seed progression')
+    parser.add_argument('--length', type=int, default=4,
+                        help='Length of progression to generate')
+    parser.add_argument('--temperature', type=float, default=1.0,
+                        help='Sampling temperature (higher = more random)')
+
     args = parser.parse_args()
 
-    # Load model
-    print(f"Loading model from {args.model_path}")
-    model = ChordProgressionModel()
-    model.load_model(args.model_path)
+    # Setup
+    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    logger.info(f"Using device: {device}")
+
+    # Load model and vocabulary
+    model, chord_to_idx = load_model(Path(args.checkpoint), device)
+    generator = ChordGenerator(model, device, chord_to_idx)
 
     # Generate progression
-    print(f"\nGenerating progression from seed: {args.seed}")
-    progression = generate_progression(seed_progression=args.seed, length=args.length, model_path=args.model_path)
-    print("Generated progression:", "-".join(progression))
+    progression = generator.generate_progression(
+        args.seed_progression,
+        length=args.length,
+        temperature=args.temperature
+    )
 
-    # Play progression if requested
-    if args.play:
-        try:
-            player = ChordPlayer()
-            print("\nPlaying progression in C major...")
-            player.play_progression(progression, args.duration)
-            player.cleanup()
-        except Exception as e:
-            print(f"Error playing progression: {e}")
-            print("Make sure you have a MIDI output device available.")
+    # Print results
+    print("\nGenerated Progression:")
+    print("---------------------")
+    total_duration = 0
+    for i, (chord, duration) in enumerate(progression, 1):
+        total_eighth_notes = duration
+        total_duration += duration / 8.0  # Convert eighth notes to bars
+        print(f"{i}. {chord:<4} (duration: {duration} eighth notes, {duration/8:.2f} bars)")
+    print(f"\nTotal duration: {total_duration:.2f} bars")
+
 
 if __name__ == "__main__":
     main()

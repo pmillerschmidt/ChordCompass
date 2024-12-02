@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ChordGenerator from './components/ChordGenerator';
 import ProgressionPlayer from './components/ProgressionPlayer';
-import { useState } from 'react';
 
 export default function App() {
-  const [currentProgression, setCurrentProgression] = useState([]);
+  const [currentProgression, setCurrentProgression] = useState(null);
 
   const handleProgressionGenerated = (progression) => {
     setCurrentProgression(progression);
@@ -17,22 +16,20 @@ export default function App() {
           <header className="mb-12 text-center">
             <h1 className="mb-4 text-4xl font-bold text-primary">ChordCompass</h1>
             <p className="text-lg text-muted-foreground">
-              Generate and play chord progressions using AI
+              Generate and play chord progressions
             </p>
           </header>
 
-          <div className="mb-12">
+          <div className="space-y-8">
             <ChordGenerator onProgressionGenerated={handleProgressionGenerated} />
+
+            {currentProgression && (
+              <ProgressionPlayer progression={currentProgression} />
+            )}
           </div>
 
-          {currentProgression.length > 0 && (
-            <div className="mb-12">
-              <ProgressionPlayer progression={currentProgression} />
-            </div>
-          )}
-
-          <footer className="text-center text-sm text-muted-foreground">
-            <p>Created with React and PyTorch</p>
+          <footer className="mt-12 text-center text-sm text-muted-foreground">
+            <p>Created with FastAPI and React</p>
           </footer>
         </div>
       </div>

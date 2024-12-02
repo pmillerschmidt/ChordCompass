@@ -1,6 +1,8 @@
 import subprocess
 import time
 import os
+import threading
+from queue import Queue
 
 
 class ChordPlayer:
@@ -11,13 +13,7 @@ class ChordPlayer:
 
         print(f"Using soundfont: {self.soundfont_path}")
 
-        # Simpler FluidSynth initialization
-        cmd = [
-            "fluidsynth",
-            "-a", "coreaudio",
-            self.soundfont_path
-        ]
-
+        cmd = ["fluidsynth", "-a", "coreaudio", self.soundfont_path]
         print(f"Starting FluidSynth with command: {' '.join(cmd)}")
 
         self.process = subprocess.Popen(
@@ -28,64 +24,82 @@ class ChordPlayer:
             text=True
         )
 
-        time.sleep(1)  # Wait for initialization
-
+        time.sleep(1)
         if self.process.poll() is not None:
             error = self.process.stderr.read()
             raise RuntimeError(f"FluidSynth failed to start: {error}")
 
         print("FluidSynth initialized successfully")
 
-        self.scale = {
-            'C': 60,  # I
-            'D': 62,  # II
-            'E': 64,  # III
-            'F': 65,  # IV
-            'G': 67,  # V
-            'A': 69,  # VI
-            'B': 71  # VII
+        # Note mapping with chromatic notes
+        self.notes = {
+            'C': 60, 'C#': 61, 'Db': 61,
+            'D': 62, 'D#': 63, 'Eb': 63,
+            'E': 64,
+            'F': 65, 'F#': 66, 'Gb': 66,
+            'G': 67, 'G#': 68, 'Ab': 68,
+            'A': 69, 'A#': 70, 'Bb': 70,
+            'B': 71
         }
 
         self.major_triad = [0, 4, 7]
         self.minor_triad = [0, 3, 7]
         self.dim_triad = [0, 3, 6]
 
-    def roman_to_midi_notes(self, roman_numeral: str):
-        """Convert Roman numeral to MIDI notes"""
-        # Remove accidentals for base note
-        base_numeral = roman_numeral.rstrip('#b')
+        # Playback control
+        self._playback_thread = None
+        self._command_queue = Queue()
+        self._is_playing = False
 
-        # Determine root note and chord quality
-        numerals = {
-            'I': 'C', 'II': 'D', 'III': 'E', 'IV': 'F',
-            'V': 'G', 'VI': 'A', 'VII': 'B'
-        }
+    def roman_to_midi_notes(self, roman_numeral: str, tonic: str, mode: str):
+        """Convert Roman numeral to MIDI notes based on tonic and mode"""
+        base_midi = self.notes[tonic]
 
-        root = numerals[base_numeral.upper()]
-        root_midi = self.scale[root]
-
-        # Determine chord quality based on numeral case
-        if base_numeral.isupper():
-            intervals = self.major_triad
+        if mode == 'M':
+            scale_degrees = [0, 2, 4, 5, 7, 9, 11]  # Major scale
         else:
-            intervals = self.minor_triad if base_numeral != 'vii' else self.dim_triad
+            scale_degrees = [0, 2, 3, 5, 7, 8, 10]  # Natural minor scale
+
+        numerals = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'] if mode == 'm' else ['I', 'II', 'III', 'IV', 'V', 'VI',
+                                                                                   'VII']
+        degree = numerals.index(roman_numeral.upper() if mode == 'M' else roman_numeral.lower())
+
+        root_midi = base_midi + scale_degrees[degree]
+
+        if mode == 'M':
+            if roman_numeral in ['I', 'IV', 'V']:
+                intervals = self.major_triad
+            elif roman_numeral in ['ii', 'iii', 'vi']:
+                intervals = self.minor_triad
+            else:
+                intervals = self.dim_triad
+        else:
+            if roman_numeral in ['III', 'VI', 'VII']:
+                intervals = self.major_triad
+            elif roman_numeral in ['i', 'iv', 'v']:
+                intervals = self.minor_triad
+            else:
+                intervals = self.dim_triad
 
         return [root_midi + interval for interval in intervals]
 
-    def play_chord(self, roman_numeral: str, duration: float = 1.0):
+    def play_chord(self, roman_numeral: str, duration: float, tonic: str, mode: str):
         """Play a single chord"""
         try:
-            notes = self.roman_to_midi_notes(roman_numeral)
-            velocity = 100  # Volume (0-127)
+            if not self._is_playing:
+                return
 
-            # Start notes
+            notes = self.roman_to_midi_notes(roman_numeral, tonic, mode)
+            velocity = 100
+
             for note in notes:
+                if not self._is_playing:
+                    return
                 self.process.stdin.write(f"noteon 0 {note} {velocity}\n")
                 self.process.stdin.flush()
 
             time.sleep(duration)
 
-            # Stop notes
             for note in notes:
                 self.process.stdin.write(f"noteoff 0 {note}\n")
                 self.process.stdin.flush()
@@ -93,41 +107,50 @@ class ChordPlayer:
             print(f"Error playing chord {roman_numeral}: {e}")
             raise
 
-    def play_progression(self, progression, tempo=120):
-        """Play a chord progression at the specified tempo"""
+    def _play_progression_thread(self, progression, tempo, tonic, mode):
+        """Internal method to play progression in a separate thread"""
         try:
-            duration = 60 / tempo  # Convert tempo to seconds per beat
-            for chord in progression:
-                print(f"Playing: {chord}")
-                self.play_chord(chord, duration)
-        except Exception as e:
-            print(f"Error playing progression: {e}")
-            raise
+            for chord_data in progression:
+                if not self._is_playing:
+                    break
+                chord = chord_data['chord']
+                duration = chord_data['duration']
+                print(f"Playing: {chord} for {duration} beats in {tonic} {mode}")
+                duration_seconds = (60 / tempo) * (duration / 2)
 
-    def test_sound(self):
-        """Test function to play a simple C major chord"""
-        try:
-            print("Testing sound output...")
-            notes = [60, 64, 67]  # C major chord
-            velocity = 100
+                if not self._is_playing:
+                    break
 
-            for note in notes:
-                print(f"Playing note {note}")
-                self.process.stdin.write(f"noteon 0 {note} {velocity}\n")
-                self.process.stdin.flush()
+                self.play_chord(chord, duration_seconds, tonic, mode)
+        finally:
+            self._is_playing = False
 
-            time.sleep(2)
+    def play_progression(self, progression, tempo=120, tonic="C", mode="M"):
+        """Play a chord progression at the specified tempo in the given key and mode"""
+        self.stop_playback()
 
-            for note in notes:
+        self._is_playing = True
+        self._playback_thread = threading.Thread(
+            target=self._play_progression_thread,
+            args=(progression, tempo, tonic, mode)
+        )
+        self._playback_thread.start()
+
+    def stop_playback(self):
+        """Stop current playback"""
+        if self._is_playing:
+            self._is_playing = False
+            while not self._command_queue.empty():
+                self._command_queue.get()
+            for note in range(128):
                 self.process.stdin.write(f"noteoff 0 {note}\n")
-                self.process.stdin.flush()
-
-        except Exception as e:
-            print(f"Error during test: {e}")
-            raise
+            self.process.stdin.flush()
+            if self._playback_thread:
+                self._playback_thread.join()
 
     def cleanup(self):
         """Clean up FluidSynth resources"""
+        self.stop_playback()
         if hasattr(self, 'process'):
             try:
                 self.process.stdin.write("quit\n")
@@ -136,17 +159,3 @@ class ChordPlayer:
                 self.process.wait(timeout=1)
             except:
                 self.process.kill()
-
-
-# Test script
-if __name__ == "__main__":
-    try:
-        player = ChordPlayer()
-        print("\nTesting single chord...")
-        player.play_chord("I", 1.0)
-
-        print("\nTesting progression...")
-        player.play_progression(["I", "IV", "V", "I"], tempo=120)
-
-    finally:
-        player.cleanup()
