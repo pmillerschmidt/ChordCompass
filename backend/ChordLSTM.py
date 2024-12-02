@@ -6,10 +6,10 @@ class ChordLSTM(nn.Module):
         self.embedding = nn.Embedding(vocab_size, hidden_dim)
         self.lstm = nn.LSTM(
             hidden_dim,
-            hidden_dim * 2,  # Increase hidden dimension
-            num_layers=3,    # Add more layers
+            hidden_dim * 2,
+            num_layers=3,
             batch_first=True,
-            dropout=0.1      # Reduce dropout
+            dropout=0.1
         )
         self.dropout = nn.Dropout(0.1)
         self.chord_head = nn.Sequential(
@@ -25,6 +25,6 @@ class ChordLSTM(nn.Module):
         last_hidden = lstm_out[:, -1, :]
 
         chord_logits = self.chord_head(last_hidden)
-        duration_logits = self.duration_head(last_hidden)  # Now outputs logits for 8 classes
+        duration_logits = self.duration_head(last_hidden)
 
         return chord_logits, duration_logits

@@ -51,7 +51,6 @@ def load_model(checkpoint_path: Path) -> Tuple[ChordLSTM, dict]:
         vocab_size=len(chord_to_idx),
         hidden_dim=64
     ).to(device)
-
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     return model, chord_to_idx
@@ -88,41 +87,32 @@ def generate_progression(
     # Use 'I' as default if no start_chord provided
     start = start_chord if start_chord else 'I'
     seed_progression = [start] * sequence_length
-
     # Convert seed progression to indices
     seed_indices = [chord_to_idx.get(chord, 0) for chord in seed_progression]
     current_sequence = torch.LongTensor([seed_indices]).to(device)
-
     chords = []
     durations = []
-
     with torch.no_grad():
         for _ in range(length):
             chord_logits, duration_logits = model(current_sequence)
-
             # Apply temperature scaling
             chord_logits = chord_logits / temperature
             duration_logits = duration_logits / temperature
-
             # Sample next chord
             chord_probs = torch.softmax(chord_logits, dim=1)
             next_chord_idx = torch.multinomial(chord_probs[0], 1).item()
             next_chord = idx_to_chord[next_chord_idx]
-
             # Sample duration (1-8 eighth notes)
             duration_probs = torch.softmax(duration_logits, dim=1)
             duration_idx = torch.multinomial(duration_probs[0], 1).item()
             next_duration = duration_idx + 1  # Convert back to 1-8 range
-
             chords.append(next_chord)
             durations.append(next_duration)
-
             # Update sequence
             current_sequence = torch.cat([
                 current_sequence[:, 1:],
                 torch.LongTensor([[next_chord_idx]]).to(device)
             ], dim=1)
-
     return chords, durations
 
 
@@ -137,27 +127,22 @@ async def generate(request: GenerationRequest):
     try:
         logger.info(f"Generating progression: length={request.length}, "
                     f"temp={request.temperature}, start={request.start_chord}")
-
         if request.start_chord not in chord_to_idx:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid start chord. Available chords: {list(chord_to_idx.keys())}"
             )
-
         chords, durations = generate_progression(
             length=request.length,
             temperature=request.temperature,
             start_chord=request.start_chord
         )
-
         total_bars = sum(d / 8.0 for d in durations)
-
         return ProgressionResponse(
             chords=chords,
             durations=durations,
             total_bars=total_bars
         )
-
     except Exception as e:
         logger.error(f"Error generating progression: {e}")
         raise HTTPException(status_code=500, detail=str(e))

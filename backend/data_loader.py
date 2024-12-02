@@ -11,11 +11,9 @@ class ChordDataset(Dataset):
         # Initialize chord types based on mode
         self.major_chord_types = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°']
         self.minor_chord_types = ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII']
-
         self.sequences = []
         self.chord_targets = []
         self.duration_targets = []
-
         for piece_name, piece_data in data_dict.items():
             # Process the roots, returns None if any non-scale chord is found
             result = self._process_roots(
