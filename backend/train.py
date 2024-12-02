@@ -129,7 +129,7 @@ def main():
     parser.add_argument('--output_dir', type=str, default='checkpoints/', help='Directory to save checkpoints')
     parser.add_argument('--sequence_length', type=int, default=3, help='Length of input sequences')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
-    parser.add_argument('--num_epochs', type=int, default=50, help='Number of epochs')
+    parser.add_argument('--num_epochs', type=int, default=100, help='Number of epochs')
     parser.add_argument('--hidden_dim', type=int, default=64, help='Hidden dimension')
     parser.add_argument('--checkpoint', type=str, help='Path to checkpoint to resume from')
     args = parser.parse_args()
