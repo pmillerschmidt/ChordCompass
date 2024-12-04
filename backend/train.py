@@ -21,7 +21,7 @@ def plot_training_metrics(losses: List[float],
                          current_epoch: int,
                          output_dir: Path):
     plt.style.use('ggplot')
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))
     epochs = np.arange(1, len(losses) + 1)
     # Plot loss
     ax1.plot(epochs, losses, 'b-', label='Total Loss')
@@ -37,13 +37,6 @@ def plot_training_metrics(losses: List[float],
     ax2.set_ylabel('Accuracy')
     ax2.grid(True)
     ax2.legend()
-    # Plot duration accuracy
-    ax3.plot(epochs, duration_accuracies, 'r-', label='Duration Accuracy')
-    ax3.set_title('Duration Prediction Accuracy')
-    ax3.set_xlabel('Epoch')
-    ax3.set_ylabel('Accuracy')
-    ax3.grid(True)
-    ax3.legend()
     plt.tight_layout()
     # Save plot
     plot_path = output_dir / f'training_metrics_epoch_{current_epoch}.png'
