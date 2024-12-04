@@ -1,6 +1,6 @@
 const API_URL = 'http://localhost:8000';
 
-export const generateProgression = async (length) => {
+export const generateProgression = async (length, temperature = 0.7) => {
   try {
     const response = await fetch(`${API_URL}/generate`, {
       method: 'POST',
@@ -9,7 +9,7 @@ export const generateProgression = async (length) => {
       },
       body: JSON.stringify({
         length,
-        temperature: 1.0
+        temperature
       }),
     });
 
