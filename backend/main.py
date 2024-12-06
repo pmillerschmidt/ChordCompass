@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from pathlib import Path
 import torch
 import logging
@@ -26,6 +26,37 @@ app.add_middleware(
 # Model setup
 device = torch.device("cpu")  # Use CPU for serving
 MODEL_PATH = "checkpoints/final_model.pt"  # Update with your model path
+
+
+# Define drum patterns (in eighth notes, 1 = hit, 0 = rest)
+DRUM_PATTERNS = {
+    'basic': {
+        'kick':  [1, 0, 0, 0, 1, 0, 0, 0],  # Beat 1 and 3
+        'snare': [0, 0, 1, 0, 0, 0, 1, 0],  # Beat 2 and 4
+        'hihat': [1, 1, 1, 1, 1, 1, 1, 1]   # Every eighth note
+    },
+    'rock': {
+        'kick':  [1, 0, 0, 1, 1, 0, 0, 0],  # Syncopated kick
+        'snare': [0, 0, 1, 0, 0, 0, 1, 0],  # Beat 2 and 4
+        'hihat': [1, 0, 1, 0, 1, 0, 1, 0]   # Quarter notes
+    },
+    'jazz': {
+        'kick':  [1, 0, 0, 0, 1, 0, 0, 0],  # Simple kick
+        'snare': [0, 0, 1, 0, 0, 0, 1, 0],  # Beat 2 and 4
+        'ride':  [1, 1, 0, 1, 0, 1, 0, 1]   # Jazz ride pattern
+    }
+}
+
+class DrumSettings(BaseModel):
+    enabled: bool = False
+    pattern: str = 'basic'
+
+class PlayRequest(BaseModel):
+    progression: List[dict]  # Will contain chord and duration
+    tempo: int = 120
+    tonic: str = "C"
+    mode: str = "M"
+    drums: Optional[DrumSettings] = None
 
 player = None
 
@@ -153,26 +184,55 @@ async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "model_loaded": model is not None}
 
-class PlayRequest(BaseModel):
-    progression: List[dict]  # Will contain chord and duration
-    tempo: int = 120
-    tonic: str = "C"
-    mode: str = "M"
+
 @app.post("/play")
 async def play(request: PlayRequest):
     try:
         print(f"Playing progression: {request.progression} in {request.tonic} {request.mode} at {request.tempo} BPM")
-        player.play_progression(
-            request.progression,
-            tempo=request.tempo,
-            tonic=request.tonic,
-            mode=request.mode
-        )
+
+        # Validate drum pattern if drums are enabled
+        if request.drums and request.drums.enabled:
+            if request.drums.pattern not in DRUM_PATTERNS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid drum pattern. Available patterns: {list(DRUM_PATTERNS.keys())}"
+                )
+
+            # Get the drum pattern
+            pattern = DRUM_PATTERNS[request.drums.pattern]
+
+            # Play progression with drums
+            player.play_progression_with_drums(
+                request.progression,
+                tempo=request.tempo,
+                tonic=request.tonic,
+                mode=request.mode,
+                drum_pattern=pattern
+            )
+        else:
+            # Play progression without drums
+            player.play_progression(
+                request.progression,
+                tempo=request.tempo,
+                tonic=request.tonic,
+                mode=request.mode
+            )
+
         return {"status": "success"}
     except Exception as e:
         print(f"Error playing progression: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/drum_patterns")
+async def get_drum_patterns():
+    """Return the list of available drum patterns"""
+    return {
+        "patterns": [
+            {"value": key, "label": key.title() + " Beat"}
+            for key in DRUM_PATTERNS.keys()
+        ]
+    }
 @app.post("/stop")
 async def stop():
     try:

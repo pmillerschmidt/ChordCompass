@@ -2,21 +2,25 @@ import React, { useState, useRef } from 'react';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
 import { Card, CardContent } from './ui/card';
-import { Play, Pause, Music2 } from 'lucide-react';
+import { Play, Pause, Music2, Drum } from 'lucide-react';
 import { Alert, AlertDescription } from "./ui/alert";
+import { Switch } from './ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const MODES = [
-  { value: 'M', label: 'Major' },
-  { value: 'm', label: 'Minor' }
+const DRUM_PATTERNS = [
+  { value: 'basic', label: 'Basic Beat' },
+  { value: 'rock', label: 'Rock Beat' },
+  { value: 'jazz', label: 'Jazz Ride' },
 ];
 
 export default function ProgressionPlayer({ progression }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [tempo, setTempo] = useState(120);
   const [tonic, setTonic] = useState('C');
-  const [mode, setMode] = useState('M');
   const [error, setError] = useState(null);
+  const [drumsEnabled, setDrumsEnabled] = useState(false);
+  const [drumPattern, setDrumPattern] = useState('basic');
   const abortControllerRef = useRef(null);
 
   const stopPlayback = async () => {
@@ -30,53 +34,51 @@ export default function ProgressionPlayer({ progression }) {
   };
 
   const playProgression = async () => {
-  try {
-    setIsPlaying(true);
-    setError(null);
+    try {
+      setIsPlaying(true);
+      setError(null);
 
-    const response = await fetch('http://localhost:8000/play', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        progression,
-        tempo,
-        tonic,
-        mode
-      }),
-    });
+      const response = await fetch('http://localhost:8000/play', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          progression,
+          tempo,
+          tonic,
+          drums: {
+            enabled: drumsEnabled,
+            pattern: drumPattern
+          }
+        }),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Server error');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Server error');
+      }
+
+      const totalBeats = progression.reduce((sum, { duration }) => sum + duration, 0);
+      const durationInSeconds = (totalBeats * 60) / (tempo * 2);
+      await new Promise(resolve => setTimeout(resolve, durationInSeconds * 1000));
+
+    } catch (error) {
+      console.error('Error playing progression:', error);
+      setError(error.message || 'Failed to play progression');
+    } finally {
+      setIsPlaying(false);
     }
+  };
 
-    // Calculate total duration based on actual chord durations
-    const totalBeats = progression.reduce((sum, { duration }) => sum + duration, 0);
-    const durationInSeconds = (totalBeats * 60) / (tempo * 2);
-
-    // Keep isPlaying true until playback finishes
-    await new Promise(resolve => setTimeout(resolve, durationInSeconds * 1000));
-
-  } catch (error) {
-    console.error('Error playing progression:', error);
-    setError(error.message || 'Failed to play progression');
-  } finally {
-    setIsPlaying(false);
-  }
-};
-
-const togglePlay = async () => {
-  if (isPlaying) {
-    await fetch('http://localhost:8000/stop', {
-      method: 'POST',
-    });
-    setIsPlaying(false);
-  } else {
-    playProgression();
-  }
-};
+  const togglePlay = async () => {
+    if (isPlaying) {
+      await stopPlayback();
+      setIsPlaying(false);
+    } else {
+      playProgression();
+    }
+  };
 
   return (
     <Card className="w-full mt-4">
@@ -84,7 +86,7 @@ const togglePlay = async () => {
         <div className="grid gap-6">
           {/* Key Selection */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Key</label>
+            <label className="text-sm font-medium">Key (Major)</label>
             <div className="flex flex-wrap gap-2">
               {NOTES.map(note => (
                 <Button
@@ -100,34 +102,50 @@ const togglePlay = async () => {
             </div>
           </div>
 
-          {/* Mode Selection */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Mode</label>
-            <div className="flex gap-2">
-              {MODES.map(({ value, label }) => (
-                <Button
-                  key={value}
-                  variant="outline"
-                  className={`px-4 ${value === mode ? 'bg-blue-500 text-white hover:bg-blue-600' : ''}`}
-                  onClick={() => setMode(value)}
-                  disabled={isPlaying}
-                >
-                  {label}
-                </Button>
-              ))}
+          {/* Drum Controls */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Drum className="h-4 w-4 text-muted-foreground" />
+                <label className="text-sm font-medium">Enable Drums</label>
+              </div>
+              <Switch
+                checked={drumsEnabled}
+                onCheckedChange={setDrumsEnabled}
+                disabled={isPlaying}
+              />
             </div>
+
+            {drumsEnabled && (
+              <Select
+                value={drumPattern}
+                onValueChange={setDrumPattern}
+                disabled={isPlaying}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select drum pattern" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DRUM_PATTERNS.map(pattern => (
+                    <SelectItem key={pattern.value} value={pattern.value}>
+                      {pattern.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Tempo and Play Controls */}
           <div className="flex items-center space-x-4">
             <Button
-            onClick={togglePlay}
-            variant="outline"
-            size="icon"
-            className="h-10 w-10"
-          >
-          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </Button>
+              onClick={togglePlay}
+              variant="outline"
+              size="icon"
+              className="h-10 w-10"
+            >
+              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </Button>
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">Tempo: {tempo} BPM</span>
