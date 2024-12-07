@@ -29,11 +29,16 @@ export default function ProgressionPlayer({ progression }) {
     try {
       await fetch(`${API_URL}/stop`, {
         method: 'POST',
+        mode: 'cors',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
       });
     } catch (error) {
       console.error('Error stopping playback:', error);
     }
-  };
+};
 
   const playProgression = async () => {
     try {
@@ -42,6 +47,8 @@ export default function ProgressionPlayer({ progression }) {
 
       const response = await fetch(`${API_URL}/play`, {
         method: 'POST',
+        mode: 'cors',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -71,7 +78,7 @@ export default function ProgressionPlayer({ progression }) {
     } finally {
       setIsPlaying(false);
     }
-  };
+};
 
   const togglePlay = async () => {
     if (isPlaying) {
