@@ -15,9 +15,31 @@ class ChordPlayer:
 
         print(f"Using soundfont: {self.soundfont_path}")
 
-        # Use default ALSA device for sound output
-        cmd = ["fluidsynth", "-a", "alsa", "-z", "128", self.soundfont_path]
+        # Use PulseAudio
+        cmd = [
+            "fluidsynth",
+            "-a", "pulseaudio",
+            "-g", "2",  # gain
+            "-r", "44100",  # sample rate
+            self.soundfont_path
+        ]
         print(f"Starting FluidSynth with command: {' '.join(cmd)}")
+
+        try:
+            self.process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            # Add error checking
+            error = self.process.stderr.readline()
+            if error:
+                print(f"FluidSynth error: {error}")
+        except Exception as e:
+            print(f"Error starting FluidSynth: {e}")
+            raise
 
         self.process = subprocess.Popen(
             cmd,
@@ -128,15 +150,20 @@ class ChordPlayer:
             self._is_playing = False
 
     def play_progression(self, progression, tempo=120, tonic="C", mode="M"):
-        """Play a chord progression at the specified tempo in the given key and mode"""
-        self.stop_playback()
+        try:
+            print(f"Playing progression: {progression} at {tempo} BPM")
+            """Play a chord progression at the specified tempo in the given key and mode"""
+            self.stop_playback()
 
-        self._is_playing = True
-        self._playback_thread = threading.Thread(
-            target=self._play_progression_thread,
-            args=(progression, tempo, tonic, mode)
-        )
-        self._playback_thread.start()
+            self._is_playing = True
+            self._playback_thread = threading.Thread(
+                target=self._play_progression_thread,
+                args=(progression, tempo, tonic, mode)
+            )
+            self._playback_thread.start()
+        except Exception as e:
+            print(f"Error playing progression: {e}")
+            raise
 
     def stop_playback(self):
         """Stop current playback"""
