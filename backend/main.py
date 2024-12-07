@@ -17,7 +17,10 @@ app = FastAPI()
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://pmillerschmidt.github.io/ChordCompass/"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://pmillerschmidt.github.io",
+        "https://pmillerschmidt.github.io/ChordCompass/"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -12,7 +12,7 @@ class ChordPlayer:
         if not os.path.exists(self.soundfont_path):
             raise FileNotFoundError(f"Soundfont not found at {self.soundfont_path}")
         print(f"Using soundfont: {self.soundfont_path}")
-        cmd = ["fluidsynth", "-a", "coreaudio", self.soundfont_path]
+        cmd = ["fluidsynth", "-a", "pulseaudio", self.soundfont_path]
         print(f"Starting FluidSynth with command: {' '.join(cmd)}")
         self.process = subprocess.Popen(
             cmd,
