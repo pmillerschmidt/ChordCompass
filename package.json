@@ -14,7 +14,8 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
-    "@shadcn/ui": "^0.0.4"
+    "@shadcn/ui": "^0.0.4",
+    "gh-pages": "^6.2.0"
   },
   "scripts": {
     "start": "react-scripts start",
