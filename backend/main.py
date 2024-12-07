@@ -192,7 +192,18 @@ async def health_check():
 @app.post("/play")
 async def play(request: PlayRequest):
     try:
-        print(f"Playing progression: {request.progression} in {request.tonic} {request.mode} at {request.tempo} BPM")
+        print(f"[DEBUG] Received play request with data:")
+        print(f"[DEBUG] Progression: {request.progression}")
+        print(f"[DEBUG] Tempo: {request.tempo}")
+        print(f"[DEBUG] Tonic: {request.tonic}")
+        print(f"[DEBUG] Mode: {request.mode}")
+
+        if not player:
+            print("[ERROR] ChordPlayer not initialized")
+            raise HTTPException(status_code=500, detail="ChordPlayer not initialized")
+
+        print(
+            f"[INFO] Playing progression: {request.progression} in {request.tonic} {request.mode} at {request.tempo} BPM")
 
         # Play progression using the ChordPlayer
         player.play_progression(
@@ -202,9 +213,14 @@ async def play(request: PlayRequest):
             mode=request.mode
         )
 
+        print("[DEBUG] Progression played successfully")
         return {"status": "success"}
+
     except Exception as e:
-        print(f"Error playing progression: {e}")
+        print(f"[ERROR] Error playing progression: {e}")
+        print(f"[ERROR] Full error details: {str(e)}")
+        import traceback
+        print(f"[ERROR] Stack trace: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/drum_patterns")
