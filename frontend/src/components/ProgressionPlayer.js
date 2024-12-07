@@ -7,6 +7,8 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { Switch } from './ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
+const API_URL = 'https://chordcompass.onrender.com';
+
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const DRUM_PATTERNS = [
   { value: 'basic', label: 'Basic Beat' },
@@ -25,7 +27,7 @@ export default function ProgressionPlayer({ progression }) {
 
   const stopPlayback = async () => {
     try {
-      await fetch('http://localhost:8000/stop', {
+      await fetch(`${API_URL}/stop`, {
         method: 'POST',
       });
     } catch (error) {
@@ -38,7 +40,7 @@ export default function ProgressionPlayer({ progression }) {
       setIsPlaying(true);
       setError(null);
 
-      const response = await fetch('http://localhost:8000/play', {
+      const response = await fetch(`${API_URL}/play`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
