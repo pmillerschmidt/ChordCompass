@@ -1,8 +1,7 @@
-fastapi
-uvicorn
+fastapi==0.109.1
+uvicorn==0.27.0
+pydantic==2.5.3
 torch
-numpy
-pydantic
 python-multipart
-fluidsynth
-gunicorn
+gunicorn==21.2.0
+starlette==0.35.1
