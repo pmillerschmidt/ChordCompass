@@ -26,8 +26,9 @@ export default function ProgressionPlayer({ progression }) {
   const abortControllerRef = useRef(null);
 
   const stopPlayback = async () => {
+    console.log("[DEBUG] Attempting to stop playback");
     try {
-      await fetch(`${API_URL}/stop`, {
+      const response = await fetch(`${API_URL}/stop`, {
         method: 'POST',
         mode: 'cors',
         credentials: 'include',
@@ -35,15 +36,41 @@ export default function ProgressionPlayer({ progression }) {
           'Content-Type': 'application/json',
         }
       });
+      console.log("[DEBUG] Stop playback response:", response);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("[ERROR] Stop playback failed:", errorData);
+      }
     } catch (error) {
-      console.error('Error stopping playback:', error);
+      console.error('[ERROR] Error stopping playback:', error);
     }
 };
 
-  const playProgression = async () => {
+
+const playProgression = async () => {
+    console.log("[DEBUG] Starting playback with settings:", {
+      progression,
+      tempo,
+      tonic,
+      drumsEnabled,
+      drumPattern
+    });
+
     try {
       setIsPlaying(true);
       setError(null);
+
+      const requestBody = {
+        progression,
+        tempo,
+        tonic,
+        drums: {
+          enabled: drumsEnabled,
+          pattern: drumPattern
+        }
+      };
+      console.log("[DEBUG] Sending request with body:", requestBody);
 
       const response = await fetch(`${API_URL}/play`, {
         method: 'POST',
@@ -52,42 +79,56 @@ export default function ProgressionPlayer({ progression }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          progression,
-          tempo,
-          tonic,
-          drums: {
-            enabled: drumsEnabled,
-            pattern: drumPattern
-          }
-        }),
+        body: JSON.stringify(requestBody),
       });
+
+      console.log("[DEBUG] Received response:", response);
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("[ERROR] Play request failed:", errorData);
         throw new Error(errorData.detail || 'Server error');
       }
 
+      const responseData = await response.json();
+      console.log("[DEBUG] Response data:", responseData);
+
       const totalBeats = progression.reduce((sum, { duration }) => sum + duration, 0);
       const durationInSeconds = (totalBeats * 60) / (tempo * 2);
+      console.log("[DEBUG] Waiting for progression to complete:", {
+        totalBeats,
+        durationInSeconds
+      });
+
       await new Promise(resolve => setTimeout(resolve, durationInSeconds * 1000));
+      console.log("[DEBUG] Playback completed");
 
     } catch (error) {
-      console.error('Error playing progression:', error);
+      console.error('[ERROR] Error playing progression:', error);
       setError(error.message || 'Failed to play progression');
     } finally {
       setIsPlaying(false);
+      console.log("[DEBUG] Playback state reset");
     }
 };
 
   const togglePlay = async () => {
+    console.log("[DEBUG] Toggle play clicked. Current state:", {
+      isPlaying,
+      progression,
+      tempo,
+      tonic
+    });
+
     if (isPlaying) {
+      console.log("[DEBUG] Stopping playback");
       await stopPlayback();
       setIsPlaying(false);
     } else {
+      console.log("[DEBUG] Starting playback");
       playProgression();
     }
-  };
+};
 
   return (
     <Card className="w-full mt-4">
