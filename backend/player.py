@@ -7,15 +7,13 @@ from queue import Queue
 
 class ChordPlayer:
     def __init__(self):
-        self.soundfont_path = os.path.expanduser("~/soundfonts/piano.sf2")
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.soundfont_path = os.path.join(current_dir, "soundfonts", "piano.sf2")
         if not os.path.exists(self.soundfont_path):
             raise FileNotFoundError(f"Soundfont not found at {self.soundfont_path}")
-
         print(f"Using soundfont: {self.soundfont_path}")
-
         cmd = ["fluidsynth", "-a", "coreaudio", self.soundfont_path]
         print(f"Starting FluidSynth with command: {' '.join(cmd)}")
-
         self.process = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
@@ -23,7 +21,6 @@ class ChordPlayer:
             stderr=subprocess.PIPE,
             text=True
         )
-
         time.sleep(1)
         if self.process.poll() is not None:
             error = self.process.stderr.read()
