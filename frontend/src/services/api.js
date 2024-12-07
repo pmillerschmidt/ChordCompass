@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:8000';
+const API_URL = 'https://chordcompass.onrender.com';
 
 export const generateProgression = async (length, temperature = 0.7) => {
   try {
