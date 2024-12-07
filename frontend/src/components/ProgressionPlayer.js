@@ -113,21 +113,13 @@ const playProgression = async () => {
 };
 
   const togglePlay = async () => {
-    console.log("[DEBUG] Toggle play clicked. Current state:", {
-      isPlaying,
-      progression,
-      tempo,
-      tonic
-    });
-
-    if (isPlaying) {
-      console.log("[DEBUG] Stopping playback");
-      await stopPlayback();
-      setIsPlaying(false);
-    } else {
-      console.log("[DEBUG] Starting playback");
-      playProgression();
-    }
+  console.log('Button clicked!'); // Basic test
+  if (isPlaying) {
+    await stopPlayback();
+    setIsPlaying(false);
+  } else {
+    playProgression();
+  }
 };
 
   return (
@@ -189,7 +181,10 @@ const playProgression = async () => {
           {/* Tempo and Play Controls */}
           <div className="flex items-center space-x-4">
             <Button
-              onClick={togglePlay}
+              onClick={() => {
+                console.log('Button clicked!');
+                togglePlay();
+              }}
               variant="outline"
               size="icon"
               className="h-10 w-10"
