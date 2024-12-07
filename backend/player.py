@@ -9,11 +9,16 @@ class ChordPlayer:
     def __init__(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         self.soundfont_path = os.path.join(current_dir, "soundfonts", "piano.sf2")
+
         if not os.path.exists(self.soundfont_path):
             raise FileNotFoundError(f"Soundfont not found at {self.soundfont_path}")
+
         print(f"Using soundfont: {self.soundfont_path}")
-        cmd = ["fluidsynth", "-a", "pulseaudio", self.soundfont_path]
+
+        # Use default ALSA device for sound output
+        cmd = ["fluidsynth", "-a", "alsa", "-z", "128", self.soundfont_path]
         print(f"Starting FluidSynth with command: {' '.join(cmd)}")
+
         self.process = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
