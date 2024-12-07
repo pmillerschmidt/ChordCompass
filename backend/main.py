@@ -20,6 +20,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://pmillerschmidt.github.io",
+        "https://chordcompass-1.onrender.com",
         "https://pmillerschmidt.github.io/ChordCompass/"],
     allow_credentials=True,
     allow_methods=["*"],
