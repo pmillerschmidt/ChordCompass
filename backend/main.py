@@ -25,6 +25,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Model setup
@@ -60,7 +61,6 @@ class PlayRequest(BaseModel):
     tempo: int = 120
     tonic: str = "C"
     mode: str = "M"
-    drums: Optional[DrumSettings] = None
 
 player = None
 
@@ -194,39 +194,18 @@ async def play(request: PlayRequest):
     try:
         print(f"Playing progression: {request.progression} in {request.tonic} {request.mode} at {request.tempo} BPM")
 
-        # Validate drum pattern if drums are enabled
-        if request.drums and request.drums.enabled:
-            if request.drums.pattern not in DRUM_PATTERNS:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid drum pattern. Available patterns: {list(DRUM_PATTERNS.keys())}"
-                )
-
-            # Get the drum pattern
-            pattern = DRUM_PATTERNS[request.drums.pattern]
-
-            # Play progression with drums
-            player.play_progression_with_drums(
-                request.progression,
-                tempo=request.tempo,
-                tonic=request.tonic,
-                mode=request.mode,
-                drum_pattern=pattern
-            )
-        else:
-            # Play progression without drums
-            player.play_progression(
-                request.progression,
-                tempo=request.tempo,
-                tonic=request.tonic,
-                mode=request.mode
-            )
+        # Play progression using the ChordPlayer
+        player.play_progression(
+            request.progression,
+            tempo=request.tempo,
+            tonic=request.tonic,
+            mode=request.mode
+        )
 
         return {"status": "success"}
     except Exception as e:
         print(f"Error playing progression: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/drum_patterns")
 async def get_drum_patterns():
