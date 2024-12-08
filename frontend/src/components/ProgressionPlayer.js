@@ -6,9 +6,10 @@ import { Play, Pause, Music2, Drum } from 'lucide-react';
 import { Alert, AlertDescription } from "./ui/alert";
 import { Switch } from './ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { audioService } from '../services/audioService';
 
-const API_URL = 'https://chordcompass-1.onrender.com';
-// const API_URL = 'http://0.0.0.0:8000';
+// const API_URL = 'https://chordcompass-1.onrender.com';
+const API_URL = 'http://0.0.0.0:8000';
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const DRUM_PATTERNS = [
@@ -27,105 +28,56 @@ export default function ProgressionPlayer({ progression }) {
   const abortControllerRef = useRef(null);
 
   const stopPlayback = async () => {
-    console.log("[DEBUG] Attempting to stop playback");
     try {
-      const response = await fetch(`${API_URL}/stop`, {
-        method: 'POST',
-        mode: 'cors',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      console.log("[DEBUG] Stop playback response:", response);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("[ERROR] Stop playback failed:", errorData);
-      }
+      console.log("[DEBUG] Stopping playback");
+      audioService.stop();  // This will release all notes
+      setIsPlaying(false);  // Update UI state
     } catch (error) {
-      console.error('[ERROR] Error stopping playback:', error);
+      console.error('Error stopping playback:', error);
     }
 };
 
 const playProgression = async () => {
-    console.log("[DEBUG] Starting playback with settings:", {
-      progression,
-      tempo,
-      tonic,
-      drumsEnabled,
-      drumPattern
-    });
-
     try {
       setIsPlaying(true);
       setError(null);
 
-      const requestBody = {
-        progression,
-        tempo,
-        tonic,
-        drums: {
-          enabled: drumsEnabled,
-          pattern: drumPattern
-        }
-      };
-      console.log("[DEBUG] Sending request with body:", requestBody);
-      console.log("[DEBUG] Sending request to:", `${API_URL}/play`);
-
-      // Single fetch call with error handling
-      let response;
-      try {
-        response = await fetch(`${API_URL}/play`, {
-          method: 'POST',
-          mode: 'cors',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-        });
-        console.log("[DEBUG] Raw response:", response);
-      } catch (networkError) {
-        console.error("[ERROR] Network error:", networkError);
-        throw networkError;
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("[ERROR] Play request failed:", errorData);
-        throw new Error(errorData.detail || 'Server error');
-      }
-
-      const responseData = await response.json();
-      console.log("[DEBUG] Response data:", responseData);
-
-      const totalBeats = progression.reduce((sum, { duration }) => sum + duration, 0);
-      const durationInSeconds = (totalBeats * 60) / (tempo * 2);
-      console.log("[DEBUG] Waiting for progression to complete:", {
-        totalBeats,
-        durationInSeconds
+      const response = await fetch(`${API_URL}/play`, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          progression,
+          tempo,
+          tonic,
+        }),
       });
 
-      await new Promise(resolve => setTimeout(resolve, durationInSeconds * 1000));
-      console.log("[DEBUG] Playback completed");
+      if (!response.ok) {
+        throw new Error('Failed to get chord data');
+      }
+
+      const { chord_data } = await response.json();
+      await audioService.playProgression(chord_data, tempo);
 
     } catch (error) {
-      console.error('[ERROR] Error playing progression:', error);
+      console.error('Error playing progression:', error);
       setError(error.message || 'Failed to play progression');
     } finally {
       setIsPlaying(false);
-      console.log("[DEBUG] Playback state reset");
     }
 };
 
-  const togglePlay = async () => {
-  console.log('Button clicked!'); // Basic test
-  if (isPlaying) {
-    await stopPlayback();
-    setIsPlaying(false);
-  } else {
-    playProgression();
-  }
+const togglePlay = async () => {
+    console.log("[DEBUG] Toggle play clicked. Current state:", { isPlaying });
+
+    if (isPlaying) {
+        await stopPlayback();
+    } else {
+        playProgression();
+    }
 };
 
   return (

@@ -195,38 +195,22 @@ async def health_check():
 @app.post("/play")
 async def play(request: PlayRequest):
     try:
-        logger.info("=" * 50)
-        logger.info("[DEBUG] /play endpoint hit")
-        logger.info(f"[DEBUG] Request data: {request}")
-        logger.info(f"[DEBUG] Player instance exists: {player is not None}")
+        logger.info(f"Generating notes for progression: {request.progression}")
 
-        if not player:
-            logger.info("[ERROR] ChordPlayer not initialized")
-            raise HTTPException(status_code=500, detail="ChordPlayer not initialized")
+        # Return the chord information with actual notes to play
+        chord_data = []
+        for chord in request.progression:
+            notes = player.roman_to_midi_notes(chord['chord'], request.tonic, request.mode)
+            chord_data.append({
+                'chord': chord['chord'],
+                'duration': chord['duration'],
+                'notes': notes  # MIDI note numbers
+            })
 
-        logger.info(
-            f"[DEBUG] Playing progression: {request.progression} in {request.tonic} {request.mode} at {request.tempo} BPM")
-
-        # Play progression using the ChordPlayer
-        try:
-            result = player.play_progression(
-                request.progression,
-                tempo=request.tempo,
-                tonic=request.tonic,
-                mode=request.mode
-            )
-            logger.info(f"[DEBUG] Play result: {result}")
-        except Exception as e:
-            logger.info(f"[ERROR] Error in player.play_progression: {str(e)}")
-            raise
-
-        logger.info("[DEBUG] Play endpoint completed successfully")
-        logger.info("=" * 50)
-        return {"status": "success"}
+        return {"chord_data": chord_data}
 
     except Exception as e:
-        logger.info(f"[ERROR] Error in play endpoint: {str(e)}")
-        logger.info("=" * 50)
+        logger.error(f"Error processing progression: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/drum_patterns")
