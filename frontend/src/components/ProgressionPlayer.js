@@ -47,7 +47,6 @@ export default function ProgressionPlayer({ progression }) {
     }
 };
 
-
 const playProgression = async () => {
     console.log("[DEBUG] Starting playback with settings:", {
       progression,
@@ -71,18 +70,24 @@ const playProgression = async () => {
         }
       };
       console.log("[DEBUG] Sending request with body:", requestBody);
+      console.log("[DEBUG] Sending request to:", `${API_URL}/play`);
 
-      const response = await fetch(`${API_URL}/play`, {
-        method: 'POST',
-        mode: 'cors',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      console.log("[DEBUG] Received response:", response);
+      // Single fetch call with error handling
+      let response;
+      try {
+        response = await fetch(`${API_URL}/play`, {
+          method: 'POST',
+          mode: 'cors',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
+        console.log("[DEBUG] Raw response:", response);
+      } catch (networkError) {
+        console.error("[ERROR] Network error:", networkError);
+        throw networkError;
+      }
 
       if (!response.ok) {
         const errorData = await response.json();

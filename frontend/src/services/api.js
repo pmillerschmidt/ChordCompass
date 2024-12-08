@@ -5,7 +5,6 @@ export const generateProgression = async (length, temperature = 0.7) => {
     const response = await fetch(`${API_URL}/generate`, {
       method: 'POST',
       mode: 'cors',
-      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -32,7 +31,6 @@ export const playProgression = async (progression, tempo, tonic, mode) => {
     const response = await fetch(`${API_URL}/play`, {
       method: 'POST',
       mode: 'cors',
-      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },

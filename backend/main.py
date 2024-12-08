@@ -1,3 +1,5 @@
+from urllib.request import Request
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -20,8 +22,9 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://pmillerschmidt.github.io",
-        "https://chordcompass-1.onrender.com",
-        "https://pmillerschmidt.github.io/ChordCompass/"],
+        "https://pmillerschmidt.github.io/ChordCompass",
+        "https://chordcompass-1.onrender.com"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -240,6 +243,13 @@ async def stop():
     except Exception as e:
         print(f"Error stopping playback: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print(f"[DEBUG] Received {request.method} request to {request.url}")
+    print(f"[DEBUG] Headers: {request.headers}")
+    response = await call_next(request)
+    return response
 
 if __name__ == "__main__":
     import uvicorn
