@@ -195,16 +195,16 @@ async def health_check():
 @app.post("/play")
 async def play(request: PlayRequest):
     try:
-        print("=" * 50)
-        print("[DEBUG] /play endpoint hit")
-        print(f"[DEBUG] Request data: {request}")
-        print(f"[DEBUG] Player instance exists: {player is not None}")
+        logger.info("=" * 50)
+        logger.info("[DEBUG] /play endpoint hit")
+        logger.info(f"[DEBUG] Request data: {request}")
+        logger.info(f"[DEBUG] Player instance exists: {player is not None}")
 
         if not player:
-            print("[ERROR] ChordPlayer not initialized")
+            logger.info("[ERROR] ChordPlayer not initialized")
             raise HTTPException(status_code=500, detail="ChordPlayer not initialized")
 
-        print(
+        logger.info(
             f"[DEBUG] Playing progression: {request.progression} in {request.tonic} {request.mode} at {request.tempo} BPM")
 
         # Play progression using the ChordPlayer
@@ -215,18 +215,18 @@ async def play(request: PlayRequest):
                 tonic=request.tonic,
                 mode=request.mode
             )
-            print(f"[DEBUG] Play result: {result}")
+            logger.info(f"[DEBUG] Play result: {result}")
         except Exception as e:
-            print(f"[ERROR] Error in player.play_progression: {str(e)}")
+            logger.info(f"[ERROR] Error in player.play_progression: {str(e)}")
             raise
 
-        print("[DEBUG] Play endpoint completed successfully")
-        print("=" * 50)
+        logger.info("[DEBUG] Play endpoint completed successfully")
+        logger.info("=" * 50)
         return {"status": "success"}
 
     except Exception as e:
-        print(f"[ERROR] Error in play endpoint: {str(e)}")
-        print("=" * 50)
+        logger.info(f"[ERROR] Error in play endpoint: {str(e)}")
+        logger.info("=" * 50)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/drum_patterns")
