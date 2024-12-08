@@ -1,8 +1,12 @@
+import platform
 import subprocess
 import time
 import os
 import threading
+import logging
 from queue import Queue
+
+logger = logging.getLogger(__name__)
 
 
 class ChordPlayer:
@@ -11,32 +15,13 @@ class ChordPlayer:
         self.soundfont_path = os.path.join(current_dir, "soundfonts", "piano.sf2")
 
         if not os.path.exists(self.soundfont_path):
+            logger.error(f"Soundfont not found at {self.soundfont_path}")
             raise FileNotFoundError(f"Soundfont not found at {self.soundfont_path}")
 
-        print(f"Using soundfont: {self.soundfont_path}")
+        logger.info(f"Using soundfont: {self.soundfont_path}")
 
-        # Simplified FluidSynth settings for just piano playback
-        cmd = [
-            "fluidsynth",
-            "-a", "pulseaudio",  # audio driver
-            "-g", "2",  # gain
-            "-r", "44100",  # sample rate
-            self.soundfont_path
-        ]
-        print(f"Starting FluidSynth with command: {' '.join(cmd)}")
-
-        try:
-            self.process = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            print("FluidSynth initialized successfully")
-        except Exception as e:
-            print(f"Error starting FluidSynth: {e}")
-            raise
+        # Initialize FluidSynth
+        self.start_fluidsynth()
 
         # Note mapping with chromatic notes
         self.notes = {
@@ -57,6 +42,95 @@ class ChordPlayer:
         self._playback_thread = None
         self._command_queue = Queue()
         self._is_playing = False
+
+    def start_fluidsynth(self):
+        """Start or restart FluidSynth process"""
+        # Determine the audio driver based on the operating system
+        system = platform.system()
+        if system == 'Darwin':
+            audio_driver = 'coreaudio'
+        elif system == 'Linux':
+            audio_driver = 'pulseaudio'
+        else:
+            audio_driver = 'alsa'  # Default fallback for other systems
+
+        logger.info(f"Using audio driver: {audio_driver} for {system}")
+
+        cmd = [
+            "fluidsynth",
+            "-a", audio_driver,
+            "-g", "2",
+            "-r", "44100",
+            self.soundfont_path
+        ]
+        logger.info(f"Starting FluidSynth with command: {' '.join(cmd)}")
+
+        try:
+            if hasattr(self, 'process') and self.process:
+                self.cleanup()
+
+            self.process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+
+            # Check for immediate errors
+            error = self.process.stderr.readline()
+            if error:
+                logger.warning(f"FluidSynth warning: {error.strip()}")
+
+            logger.info("FluidSynth initialized successfully")
+        except Exception as e:
+            logger.error(f"Error starting FluidSynth: {e}")
+            raise
+
+    def send_command(self, cmd):
+        """Safely send a command to FluidSynth"""
+        try:
+            if not self.process or self.process.poll() is not None:
+                logger.warning("FluidSynth process not running, restarting...")
+                self.start_fluidsynth()
+
+            self.process.stdin.write(cmd + "\n")
+            self.process.stdin.flush()
+
+        except BrokenPipeError:
+            logger.warning("Broken pipe detected, restarting FluidSynth...")
+            self.start_fluidsynth()
+            self.process.stdin.write(cmd + "\n")
+            self.process.stdin.flush()
+        except Exception as e:
+            logger.error(f"Error sending command to FluidSynth: {e}")
+            raise
+
+    def play_chord(self, roman_numeral: str, duration: float, tonic: str, mode: str):
+        """Play a single chord"""
+        try:
+            if not self._is_playing:
+                return
+
+            logger.debug(f"Playing chord: {roman_numeral} for {duration}s in {tonic} {mode}")
+            notes = self.roman_to_midi_notes(roman_numeral, tonic, mode)
+            velocity = 100
+
+            # Send note on commands
+            for note in notes:
+                if not self._is_playing:
+                    return
+                self.send_command(f"noteon 0 {note} {velocity}")
+
+            time.sleep(duration)
+
+            # Send note off commands
+            for note in notes:
+                self.send_command(f"noteoff 0 {note}")
+
+        except Exception as e:
+            logger.error(f"Error playing chord {roman_numeral}: {e}")
+            raise
 
     def roman_to_midi_notes(self, roman_numeral: str, tonic: str, mode: str):
         """Convert Roman numeral to MIDI notes based on tonic and mode"""
@@ -90,30 +164,6 @@ class ChordPlayer:
 
         return [root_midi + interval for interval in intervals]
 
-    def play_chord(self, roman_numeral: str, duration: float, tonic: str, mode: str):
-        """Play a single chord"""
-        try:
-            if not self._is_playing:
-                return
-
-            notes = self.roman_to_midi_notes(roman_numeral, tonic, mode)
-            velocity = 100
-
-            for note in notes:
-                if not self._is_playing:
-                    return
-                self.process.stdin.write(f"noteon 0 {note} {velocity}\n")
-                self.process.stdin.flush()
-
-            time.sleep(duration)
-
-            for note in notes:
-                self.process.stdin.write(f"noteoff 0 {note}\n")
-                self.process.stdin.flush()
-        except Exception as e:
-            print(f"Error playing chord {roman_numeral}: {e}")
-            raise
-
     def _play_progression_thread(self, progression, tempo, tonic, mode):
         """Internal method to play progression in a separate thread"""
         try:
@@ -134,8 +184,7 @@ class ChordPlayer:
 
     def play_progression(self, progression, tempo=120, tonic="C", mode="M"):
         try:
-            print(f"Playing progression: {progression} at {tempo} BPM")
-            """Play a chord progression at the specified tempo in the given key and mode"""
+            logger.info(f"Playing progression: {progression} at {tempo} BPM")
             self.stop_playback()
 
             self._is_playing = True
@@ -145,7 +194,7 @@ class ChordPlayer:
             )
             self._playback_thread.start()
         except Exception as e:
-            print(f"Error playing progression: {e}")
+            logger.error(f"Error playing progression: {e}")
             raise
 
     def stop_playback(self):

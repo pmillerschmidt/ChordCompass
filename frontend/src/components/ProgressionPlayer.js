@@ -7,7 +7,8 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { Switch } from './ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
-const API_URL = 'https://chordcompass-1.onrender.com';
+// const API_URL = 'https://chordcompass-1.onrender.com';
+const API_URL = 'http://0.0.0.0:8000';
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const DRUM_PATTERNS = [
