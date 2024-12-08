@@ -45,36 +45,49 @@ class ChordPlayer:
 
     def start_fluidsynth(self):
         """Start or restart FluidSynth process"""
-        # Determine the audio driver based on the operating system
-        system = platform.system()
-        if system == 'Darwin':
-            audio_driver = 'coreaudio'
-        elif system == 'Linux':
-            audio_driver = 'pulseaudio'
+        # Check if we're running on Render
+        is_render = os.environ.get('RENDER', '').lower() == 'true'
+
+        if is_render:
+            cmd = [
+                "fluidsynth",
+                "-a", "pulseaudio",
+                "-o", "audio.pulseaudio.server=unix:/tmp/pulseaudio.socket",
+                "-g", "2",  # gain
+                "-r", "44100",  # sample rate
+                "-c", "2",  # audio channels
+                "-z", "512",  # audio buffer size
+                self.soundfont_path
+            ]
         else:
-            audio_driver = 'alsa'  # Default fallback for other systems
+            # Local development settings
+            system = platform.system()
+            audio_driver = 'coreaudio' if system == 'Darwin' else 'pulseaudio'
+            cmd = [
+                "fluidsynth",
+                "-a", audio_driver,
+                "-g", "2",
+                "-r", "44100",
+                self.soundfont_path
+            ]
 
-        logger.info(f"Using audio driver: {audio_driver} for {system}")
-
-        cmd = [
-            "fluidsynth",
-            "-a", audio_driver,
-            "-g", "2",
-            "-r", "44100",
-            self.soundfont_path
-        ]
         logger.info(f"Starting FluidSynth with command: {' '.join(cmd)}")
 
         try:
             if hasattr(self, 'process') and self.process:
                 self.cleanup()
 
+            env = os.environ.copy()
+            if is_render:
+                env['PULSE_SERVER'] = 'unix:/tmp/pulseaudio.socket'
+
             self.process = subprocess.Popen(
                 cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                env=env
             )
 
             # Check for immediate errors
@@ -83,6 +96,10 @@ class ChordPlayer:
                 logger.warning(f"FluidSynth warning: {error.strip()}")
 
             logger.info("FluidSynth initialized successfully")
+
+            # Initialize MIDI channel
+            self.send_command("prog 0 0")  # Set program/instrument for channel 0
+
         except Exception as e:
             logger.error(f"Error starting FluidSynth: {e}")
             raise
@@ -172,7 +189,7 @@ class ChordPlayer:
                     break
                 chord = chord_data['chord']
                 duration = chord_data['duration']
-                print(f"Playing: {chord} for {duration} beats in {tonic} {mode}")
+                logger.info(f"Playing: {chord} for {duration} beats in {tonic} {mode}")
                 duration_seconds = (60 / tempo) * (duration / 2)
 
                 if not self._is_playing:
