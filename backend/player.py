@@ -15,10 +15,10 @@ class ChordPlayer:
 
         print(f"Using soundfont: {self.soundfont_path}")
 
-        # Use PulseAudio
+        # Simplified FluidSynth settings for just piano playback
         cmd = [
             "fluidsynth",
-            "-a", "pulseaudio",
+            "-a", "pulseaudio",  # audio driver
             "-g", "2",  # gain
             "-r", "44100",  # sample rate
             self.soundfont_path
@@ -33,27 +33,10 @@ class ChordPlayer:
                 stderr=subprocess.PIPE,
                 text=True
             )
-            # Add error checking
-            error = self.process.stderr.readline()
-            if error:
-                print(f"FluidSynth error: {error}")
+            print("FluidSynth initialized successfully")
         except Exception as e:
             print(f"Error starting FluidSynth: {e}")
             raise
-
-        self.process = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        time.sleep(1)
-        if self.process.poll() is not None:
-            error = self.process.stderr.read()
-            raise RuntimeError(f"FluidSynth failed to start: {error}")
-
-        print("FluidSynth initialized successfully")
 
         # Note mapping with chromatic notes
         self.notes = {
