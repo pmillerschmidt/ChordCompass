@@ -15,17 +15,14 @@ class ChordDataset(Dataset):
         self.chord_targets = []
         self.duration_targets = []
         for piece_name, piece_data in data_dict.items():
-            # Process the roots, returns None if any non-scale chord is found
             result = self._process_roots(
                 piece_data['root'],
                 piece_data['tonic'],
                 piece_data['mode']
             )
-            # Skip this piece if it contains non-scale chords
             if result is None:
                 continue
             chord_sequence, duration_sequence = result
-            # Create sequences only if we have enough chords
             if len(chord_sequence) >= sequence_length + 1:
                 for i in range(len(chord_sequence) - sequence_length):
                     sequence = chord_sequence[i:i + sequence_length]
@@ -59,7 +56,7 @@ class ChordDataset(Dataset):
         for bar in root_matrix:
             for root in bar:
                 interval = (root - tonic) % 12
-                # If we encounter a non-scale tone, return None
+                # non-scale tone -> None
                 if interval not in scale:
                     return None
                 scale_index = scale.index(interval)
@@ -72,7 +69,7 @@ class ChordDataset(Dataset):
                     current_duration = 1
                 else:
                     current_duration += 1
-        # Add the final chord
+        # final chord
         if current_chord is not None:
             chord_progression.append(current_chord)
             durations.append(current_duration)
@@ -81,9 +78,9 @@ class ChordDataset(Dataset):
 
 def create_chord_vocabulary() -> List[str]:
     chord_types = [
-        # Major scale chords
+        # major
         'I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°',
-        # Minor scale chords
+        # minor
         'i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'
     ]
     return chord_types

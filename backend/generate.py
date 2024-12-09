@@ -19,58 +19,44 @@ class ChordGenerator:
 
     def generate_progression(self, seed_progression: Optional[List[str]] = None, length: int = 8, temperature: float = 1.0) -> List[Tuple[str, int]]:
         if seed_progression is None:
-            # Start with common chord choices like I or vi
+            # seed with root
             seed_progression = ['I'] * 3
-
         self.model.eval()
-
-        # Convert seed progression to indices
         seed_indices = [self.chord_to_idx.get(chord, 0) for chord in seed_progression]
         current_sequence = torch.LongTensor([seed_indices]).to(self.device)
-
         generated_progression = []
-
         with torch.no_grad():
             for _ in range(length):
                 chord_logits, duration_logits = self.model(current_sequence)
-
-                # Apply temperature scaling
+                # temperature
                 chord_logits = chord_logits / temperature
                 duration_logits = duration_logits / temperature
-
-                # Sample next chord
+                # sample chord
                 chord_probs = torch.softmax(chord_logits, dim=1)
                 next_chord_idx = torch.multinomial(chord_probs[0], 1).item()
                 next_chord = self.idx_to_chord[next_chord_idx]
-
-                # Sample duration (1-8 eighth notes)
+                # sample dur
                 duration_probs = torch.softmax(duration_logits, dim=1)
                 duration_idx = torch.multinomial(duration_probs[0], 1).item()
-                next_duration = duration_idx + 1  # Convert back to 1-8 range
-
+                next_duration = duration_idx + 1
                 generated_progression.append((next_chord, next_duration))
-
-                # Update sequence
+                # update
                 current_sequence = torch.cat([
                     current_sequence[:, 1:],
                     torch.LongTensor([[next_chord_idx]]).to(self.device)
                 ], dim=1)
-
         return generated_progression
 
 
 def load_model(checkpoint_path: Path, device: torch.device) -> Tuple[ChordLSTM, Dict]:
     checkpoint = torch.load(checkpoint_path, map_location=device)
     chord_to_idx = checkpoint['vocab']
-
     model = ChordLSTM(
         vocab_size=len(chord_to_idx),
         hidden_dim=64
     ).to(device)
-
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
-
     return model, chord_to_idx
 
 
@@ -82,25 +68,19 @@ def main():
                         help='Length of progression to generate')
     parser.add_argument('--temperature', type=float, default=1.0,
                         help='Sampling temperature (higher = more random)')
-
     args = parser.parse_args()
-
-    # Setup
+    # setup
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     logger.info(f"Using device: {device}")
-
-    # Load model and vocabulary
+    # model and vocabulary
     model, chord_to_idx = load_model(Path(args.checkpoint), device)
     generator = ChordGenerator(model, device, chord_to_idx)
-
-    # Generate progression
+    # gen progression
     progression = generator.generate_progression(
         args.seed_progression,
         length=args.length,
         temperature=args.temperature
     )
-
-    # Print results
     print("\nGenerated Progression:")
     print("---------------------")
     total_duration = 0

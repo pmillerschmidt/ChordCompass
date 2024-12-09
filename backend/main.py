@@ -10,7 +10,7 @@ import logging
 from ChordLSTM import ChordLSTM
 from player import ChordPlayer
 
-# Setup logging
+# logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -31,33 +31,9 @@ app.add_middleware(
     expose_headers=["*"]
 )
 
-# Model setup
+# model setup
 device = torch.device("cpu")  # Use CPU for serving
-MODEL_PATH = "checkpoints/final_model.pt"  # Update with your model path
-
-
-# Define drum patterns (in eighth notes, 1 = hit, 0 = rest)
-DRUM_PATTERNS = {
-    'basic': {
-        'kick':  [1, 0, 0, 0, 1, 0, 0, 0],  # Beat 1 and 3
-        'snare': [0, 0, 1, 0, 0, 0, 1, 0],  # Beat 2 and 4
-        'hihat': [1, 1, 1, 1, 1, 1, 1, 1]   # Every eighth note
-    },
-    'rock': {
-        'kick':  [1, 0, 0, 1, 1, 0, 0, 0],  # Syncopated kick
-        'snare': [0, 0, 1, 0, 0, 0, 1, 0],  # Beat 2 and 4
-        'hihat': [1, 0, 1, 0, 1, 0, 1, 0]   # Quarter notes
-    },
-    'jazz': {
-        'kick':  [1, 0, 0, 0, 1, 0, 0, 0],  # Simple kick
-        'snare': [0, 0, 1, 0, 0, 0, 1, 0],  # Beat 2 and 4
-        'ride':  [1, 1, 0, 1, 0, 1, 0, 1]   # Jazz ride pattern
-    }
-}
-
-class DrumSettings(BaseModel):
-    enabled: bool = False
-    pattern: str = 'basic'
+MODEL_PATH = "checkpoints/final_model.pt"
 
 class PlayRequest(BaseModel):
     progression: List[dict]  # Will contain chord and duration
@@ -84,7 +60,6 @@ async def shutdown_event():
 def load_model(checkpoint_path: Path) -> Tuple[ChordLSTM, dict]:
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
     chord_to_idx = checkpoint['vocab']
-
     model = ChordLSTM(
         vocab_size=len(chord_to_idx),
         hidden_dim=64
@@ -94,7 +69,7 @@ def load_model(checkpoint_path: Path) -> Tuple[ChordLSTM, dict]:
     return model, chord_to_idx
 
 
-# Load model at startup
+# load model
 try:
     model, chord_to_idx = load_model(Path(MODEL_PATH))
     idx_to_chord = {idx: chord for chord, idx in chord_to_idx.items()}
@@ -120,12 +95,10 @@ def generate_progression(
     temperature: float = 1.0,
     start_chord: str = None
 ) -> Tuple[List[str], List[int]]:
-    """Generate a chord progression"""
-    sequence_length = 2  # Should match training
-    # Use 'I' as default if no start_chord provided
+    sequence_length = 2  # same as training
+    # default to roo
     start = start_chord if start_chord else 'I'
     seed_progression = [start] * sequence_length
-    # Convert seed progression to indices
     seed_indices = [chord_to_idx.get(chord, 0) for chord in seed_progression]
     current_sequence = torch.LongTensor([seed_indices]).to(device)
     chords = []
@@ -133,20 +106,20 @@ def generate_progression(
     with torch.no_grad():
         for _ in range(length):
             chord_logits, duration_logits = model(current_sequence)
-            # Apply temperature scaling
+            # temp
             chord_logits = chord_logits / temperature
             duration_logits = duration_logits / temperature
-            # Sample next chord
+            # next chord
             chord_probs = torch.softmax(chord_logits, dim=1)
             next_chord_idx = torch.multinomial(chord_probs[0], 1).item()
             next_chord = idx_to_chord[next_chord_idx]
-            # Sample duration (1-8 eighth notes)
+            # next dur
             duration_probs = torch.softmax(duration_logits, dim=1)
             duration_idx = torch.multinomial(duration_probs[0], 1).item()
-            next_duration = duration_idx + 1  # Convert back to 1-8 range
+            next_duration = duration_idx + 1
             chords.append(next_chord)
             durations.append(next_duration)
-            # Update sequence
+            # update
             current_sequence = torch.cat([
                 current_sequence[:, 1:],
                 torch.LongTensor([[next_chord_idx]]).to(device)

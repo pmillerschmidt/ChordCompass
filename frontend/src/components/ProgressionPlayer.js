@@ -2,36 +2,27 @@ import React, { useState, useRef } from 'react';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
 import { Card, CardContent } from './ui/card';
-import { Play, Pause, Music2, Drum } from 'lucide-react';
+import { Play, Pause, Music2 } from 'lucide-react';
 import { Alert, AlertDescription } from "./ui/alert";
-import { Switch } from './ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { audioService } from '../services/audioService';
 
 const API_URL = 'https://chordcompass-1.onrender.com';
 // const API_URL = 'http://0.0.0.0:8000';
 
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const DRUM_PATTERNS = [
-  { value: 'basic', label: 'Basic Beat' },
-  { value: 'rock', label: 'Rock Beat' },
-  { value: 'jazz', label: 'Jazz Ride' },
-];
+
 
 export default function ProgressionPlayer({ progression }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [tempo, setTempo] = useState(120);
   const [tonic, setTonic] = useState('C');
   const [error, setError] = useState(null);
-  const [drumsEnabled, setDrumsEnabled] = useState(false);
-  const [drumPattern, setDrumPattern] = useState('basic');
-  const abortControllerRef = useRef(null);
 
   const stopPlayback = async () => {
     try {
       console.log("[DEBUG] Stopping playback");
-      audioService.stop();  // This will release all notes
-      setIsPlaying(false);  // Update UI state
+      audioService.stop();
+      setIsPlaying(false);
     } catch (error) {
       console.error('Error stopping playback:', error);
     }
@@ -100,40 +91,6 @@ const togglePlay = async () => {
                 </Button>
               ))}
             </div>
-          </div>
-
-          {/* Drum Controls */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Drum className="h-4 w-4 text-muted-foreground" />
-                <label className="text-sm font-medium">Enable Drums</label>
-              </div>
-              <Switch
-                checked={drumsEnabled}
-                onCheckedChange={setDrumsEnabled}
-                disabled={isPlaying}
-              />
-            </div>
-
-            {drumsEnabled && (
-              <Select
-                value={drumPattern}
-                onValueChange={setDrumPattern}
-                disabled={isPlaying}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select drum pattern" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DRUM_PATTERNS.map(pattern => (
-                    <SelectItem key={pattern.value} value={pattern.value}>
-                      {pattern.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
           </div>
 
           {/* Tempo and Play Controls */}

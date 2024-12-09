@@ -23,14 +23,14 @@ def plot_training_metrics(losses: List[float],
     plt.style.use('ggplot')
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))
     epochs = np.arange(1, len(losses) + 1)
-    # Plot loss
+    # plot loss
     ax1.plot(epochs, losses, 'b-', label='Total Loss')
     ax1.set_title('Training Loss')
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Loss')
     ax1.grid(True)
     ax1.legend()
-    # Plot chord accuracy
+    # plot chord acc
     ax2.plot(epochs, accuracies, 'g-', label='Chord Accuracy')
     ax2.set_title('Chord Prediction Accuracy')
     ax2.set_xlabel('Epoch')
@@ -49,30 +49,28 @@ class ChordTrainer:
     def __init__(self, model: ChordLSTM, device: torch.device):
         self.model = model
         self.device = device
-        # Both chord and duration now use CrossEntropyLoss
         self.chord_criterion = nn.CrossEntropyLoss()
         self.duration_criterion = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer, mode='max', factor=0.5, patience=5
         )
-        # Track metrics
+        # track metrics
         self.losses = []
         self.accuracies = []
-        self.duration_accuracies = []  # Changed from mses
+        self.duration_accuracies = []
 
     def train_epoch(self, dataloader: DataLoader) -> Tuple[float, float, float]:
         self.model.train()
         total_loss = 0
         chord_accuracy = 0
-        duration_accuracy = 0  # Changed from duration_mse
+        duration_accuracy = 0
         for batch_sequences, batch_chord_targets, batch_duration_targets in dataloader:
             batch_sequences = batch_sequences.to(self.device)
             batch_chord_targets = batch_chord_targets.to(self.device)
-            # Convert duration targets to 0-based indices for CrossEntropyLoss
             batch_duration_targets = (batch_duration_targets - 1).long().to(self.device)
             self.optimizer.zero_grad()
-            chord_logits, duration_logits = self.model(batch_sequences)  # Now returns logits for both
+            chord_logits, duration_logits = self.model(batch_sequences)  #
             # get loss
             chord_loss = self.chord_criterion(chord_logits, batch_chord_targets)
             duration_loss = self.duration_criterion(duration_logits, batch_duration_targets)
@@ -81,14 +79,14 @@ class ChordTrainer:
             combined_loss.backward()
             self.optimizer.step()
             total_loss += combined_loss.item()
-            # Calculate accuracies for both predictions
+            # calc acc
             chord_pred = torch.argmax(chord_logits, dim=1)
             duration_pred = torch.argmax(duration_logits, dim=1)
             chord_accuracy += (chord_pred == batch_chord_targets).float().mean().item()
             duration_accuracy += (duration_pred == batch_duration_targets).float().mean().item()
         # get batches
         num_batches = len(dataloader)
-        # Store metrics
+        # metrics
         avg_loss = total_loss / num_batches
         avg_chord_accuracy = chord_accuracy / num_batches
         avg_duration_accuracy = duration_accuracy / num_batches
@@ -126,28 +124,27 @@ def main():
     parser.add_argument('--hidden_dim', type=int, default=64, help='Hidden dimension')
     parser.add_argument('--checkpoint', type=str, help='Path to checkpoint to resume from')
     args = parser.parse_args()
-    # Setup device
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     logger.info(f"Using device: {device}")
-    # Create output directory
+    # output directory
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    # Initialize vocabulary and dataset
+    # init vocabulary and dataset
     chord_types = create_chord_vocabulary()
     chord_to_idx = {chord: idx for idx, chord in enumerate(chord_types)}
     dataset = load_dataset(args.data_path)
-    # Create model and trainer
+    # init model + trainer
     model = ChordLSTM(
         vocab_size=len(chord_types),
         hidden_dim=args.hidden_dim
     ).to(device)
     trainer = ChordTrainer(model, device)
-    # Load checkpoint if specified
+    # load model checkpoint
     start_epoch = 0
     if args.checkpoint:
         start_epoch, _ = trainer.load_checkpoint(Path(args.checkpoint))
         logger.info(f"Resumed from epoch {start_epoch}")
-    # Create dataset and dataloader
+    # init dataset + loader
     chord_dataset = ChordDataset(dataset, args.sequence_length, chord_to_idx)
     logger.info(f"Dataset size: {len(chord_dataset)} sequences")
     dataloader = DataLoader(
@@ -156,7 +153,7 @@ def main():
         shuffle=True,
         num_workers=4
     )
-    # Training loop
+    # train
     for epoch in range(start_epoch, args.num_epochs):
         loss, chord_acc, duration_acc = trainer.train_epoch(dataloader)
         logger.info(

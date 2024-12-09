@@ -23,8 +23,6 @@ class ChordLSTM(nn.Module):
         embedded = self.dropout(self.embedding(x))
         lstm_out, _ = self.lstm(embedded)
         last_hidden = lstm_out[:, -1, :]
-
         chord_logits = self.chord_head(last_hidden)
         duration_logits = self.duration_head(last_hidden)
-
         return chord_logits, duration_logits
