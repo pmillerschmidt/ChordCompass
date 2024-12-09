@@ -49,31 +49,6 @@ class AudioService {
     this._isPlaying = false;
   }
 
-  findClosestNotes(prevNotes, nextNotes) {
-    if (!prevNotes) return nextNotes;
-
-    // voice lead
-    let bestNotes = [...nextNotes];
-    let minDistance = Infinity;
-
-    for (let i = -1; i <= 1; i++) {
-      for (let j = -1; j <= 1; j++) {
-        for (let k = -1; k <= 1; k++) {
-          const octaveShifts = [i * 12, j * 12, k * 12];
-          const candidateNotes = nextNotes.map((note, idx) => note + octaveShifts[idx]);
-          const totalDistance = prevNotes.reduce((sum, prevNote, idx) => {
-            return sum + Math.abs(prevNote - candidateNotes[idx]);
-          }, 0);
-          if (totalDistance < minDistance) {
-            minDistance = totalDistance;
-            bestNotes = candidateNotes;
-          }
-        }
-      }
-    }
-    return bestNotes;
-  }
-
   async playChord(notes, duration) {
     const midiToNote = (midi) => {
       const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -97,11 +72,8 @@ class AudioService {
     let previousNotes = null;
     for (const chord of chordData) {
       if (!this._isPlaying) break;
-      // voice lead
-      const optimizedNotes = this.findClosestNotes(previousNotes, chord.notes);
-      previousNotes = optimizedNotes;
       const duration = chord.duration * secondsPerBeat / 2;
-      await this.playChord(optimizedNotes, duration);
+      await this.playChord(chord.notes, duration);
       this._currentTimeout = await new Promise(resolve => setTimeout(resolve, duration * 1000));
     }
     this._currentTimeout = null;
