@@ -15,13 +15,20 @@ export default function ChordGenerator({ onProgressionGenerated }) {
   const handleGenerate = async () => {
     setLoading(true);
     setError(null);
-
     try {
       const data = await generateProgression(length, temperature);
-      onProgressionGenerated(data.chords.map((chord, i) => ({
-        chord,
-        duration: data.durations[i]
-      })));
+
+      // Create progression object with chords array and tempo
+      const progression = {
+        chords: data.chords.map((chord, i) => ({
+          notes: chord.notes,  // Assuming the API returns notes
+          duration: data.durations[i],
+          name: chord.name     // Assuming the API returns chord names
+        })),
+        tempo: 120  // You might want to make this configurable
+      };
+
+      onProgressionGenerated(progression);
     } catch (error) {
       setError('Failed to generate progression. Please try again.');
       console.error('Error:', error);
