@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/ChordCompass/static/css/main.dd4732fb.css",
-    "main.js": "/ChordCompass/static/js/main.75858460.js",
+    "main.js": "/ChordCompass/static/js/main.822d0fa3.js",
     "static/js/453.8ab44547.chunk.js": "/ChordCompass/static/js/453.8ab44547.chunk.js",
     "index.html": "/ChordCompass/index.html",
     "main.dd4732fb.css.map": "/ChordCompass/static/css/main.dd4732fb.css.map",
-    "main.75858460.js.map": "/ChordCompass/static/js/main.75858460.js.map",
+    "main.822d0fa3.js.map": "/ChordCompass/static/js/main.822d0fa3.js.map",
     "453.8ab44547.chunk.js.map": "/ChordCompass/static/js/453.8ab44547.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.dd4732fb.css",
-    "static/js/main.75858460.js"
+    "static/js/main.822d0fa3.js"
   ]
 }
