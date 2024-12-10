@@ -36,7 +36,7 @@ device = torch.device("cpu")  # Use CPU for serving
 MODEL_PATH = "checkpoints/final_model.pt"
 
 class PlayRequest(BaseModel):
-    progression: List[dict]  # Will contain chord and duration
+    progression: List[dict]
     tempo: int = 120
     tonic: str = "C"
     mode: str = "M"
@@ -84,9 +84,8 @@ class GenerationRequest(BaseModel):
     temperature: float = 1.0
     start_chord: str = 'I'
 
-
 class ProgressionResponse(BaseModel):
-    chords: List[str]
+    chords: List[dict]
     durations: List[int]
     total_bars: float
 
@@ -136,8 +135,6 @@ async def get_available_chords():
 @app.post("/generate", response_model=ProgressionResponse)
 async def generate(request: GenerationRequest):
     try:
-        logger.info(f"Generating progression: length={request.length}, "
-                    f"temp={request.temperature}, start={request.start_chord}")
         if request.start_chord not in chord_to_idx:
             raise HTTPException(
                 status_code=400,
@@ -148,16 +145,25 @@ async def generate(request: GenerationRequest):
             temperature=request.temperature,
             start_chord=request.start_chord
         )
+
+        chord_data = []
+        for chord in chords:
+            notes = player.roman_to_midi_notes(chord, "C", "M")
+            chord_data.append({
+                "chord": chord,
+                "notes": notes
+            })
+
         total_bars = sum(d / 8.0 for d in durations)
+
         return ProgressionResponse(
-            chords=chords,
+            chords=chord_data,
             durations=durations,
             total_bars=total_bars
         )
     except Exception as e:
         logger.error(f"Error generating progression: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/health")
 async def health_check():
